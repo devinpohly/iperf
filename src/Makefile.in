@@ -145,7 +145,7 @@ am__uninstall_files_from_dir = { \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libiperf_la_LIBADD =
+libiperf_la_DEPENDENCIES =
 am_libiperf_la_OBJECTS = cjson.lo iperf_api.lo iperf_error.lo \
 	iperf_auth.lo iperf_client_api.lo iperf_locale.lo \
 	iperf_server_api.lo iperf_tcp.lo iperf_udp.lo iperf_sctp.lo \
@@ -670,6 +670,7 @@ libiperf_la_SOURCES = \
                         units.h \
                         version.h
 
+libiperf_la_LIBADD = -lrmx_api
 
 # Specify the sources and various flags for the iperf binary
 iperf3_SOURCES = main.c

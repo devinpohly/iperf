@@ -746,7 +746,6 @@ _LT_CONFIG_SAVE_COMMANDS([
     cat <<_LT_EOF >> "$cfgfile"
 #! $SHELL
 # Generated automatically by $as_me ($PACKAGE) $VERSION
-# Libtool was configured on host `(hostname || uname -n) 2>/dev/null | sed 1q`:
 # NOTE: Changes made to this file will be lost: look at ltmain.sh.
 
 # Provide generalized library-building support services.
@@ -8968,15 +8967,15 @@ m4_define([lt_dict_filter],
 
 # @configure_input@
 
-# serial 4245 ltversion.m4
+# serial 4249 ltversion.m4
 # This file is part of GNU Libtool
 
-m4_define([LT_PACKAGE_VERSION], [2.4.7])
-m4_define([LT_PACKAGE_REVISION], [2.4.7])
+m4_define([LT_PACKAGE_VERSION], [2.4.7.4-1ec8f-dirty])
+m4_define([LT_PACKAGE_REVISION], [2.4.7.4])
 
 AC_DEFUN([LTVERSION_VERSION],
-[macro_version='2.4.7'
-macro_revision='2.4.7'
+[macro_version='2.4.7.4-1ec8f-dirty'
+macro_revision='2.4.7.4'
 _LT_DECL(, macro_version, 0, [Which release of libtool.m4 was used?])
 _LT_DECL(, macro_revision, 0)
 ])
