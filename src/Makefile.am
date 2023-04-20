@@ -44,6 +44,7 @@ libiperf_la_SOURCES     = \
                         units.c \
                         units.h \
                         version.h
+libiperf_la_LIBADD      = -lrmx_api
 
 # Specify the sources and various flags for the iperf binary
 iperf3_SOURCES          = main.c
