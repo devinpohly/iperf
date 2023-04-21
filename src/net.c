@@ -38,6 +38,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <rmx_api.h>
 
 #ifdef HAVE_SENDFILE
 #ifdef linux
@@ -64,6 +65,8 @@
 #include "iperf_util.h"
 #include "net.h"
 #include "timer.h"
+
+#define N 5
 
 /*
  * Declaration of gerror in iperf_error.c.  Most other files in iperf3 can get this
@@ -92,7 +95,20 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 			return -1;
 	}
 
-	if ((ret = connect(s, name, namelen)) != 0 && errno == EINPROGRESS) {
+	struct sockaddr_in remote_addrs[N];
+	struct sockaddr *remote_addrs_ptrs[N];
+	socklen_t socklens[N];
+	memset(remote_addrs, 0, sizeof(remote_addrs));
+
+	for (int i = 0; i < N; i++) {
+	    remote_addrs[i].sin_family = AF_INET;
+	    socklens[i] = sizeof(struct sockaddr_in);
+	    remote_addrs[i].sin_addr.s_addr = htonl(0xc0a80102 + 0x100 * i);
+	    remote_addrs[i].sin_port = htons(31920);
+	    remote_addrs_ptrs[i] = (struct sockaddr *) &remote_addrs[i];
+	}
+
+	if ((ret = rmx_connect(s, N, remote_addrs_ptrs, socklens)) != 0 && errno == EINPROGRESS) {
 		pfd.fd = s;
 		pfd.events = POLLOUT;
 		if ((ret = poll(&pfd, 1, timeout)) == 1) {
@@ -176,7 +192,20 @@ create_socket(int domain, int proto, const char *local, const char *bind_dev, in
             lcladdr->sin_port = htons(local_port);
         }
 
-        if (bind(s, (struct sockaddr *) local_res->ai_addr, local_res->ai_addrlen) < 0) {
+	struct sockaddr_in local_addrs[N];
+	struct sockaddr *local_addrs_ptrs[N];
+	socklen_t socklens[N];
+	memset(local_addrs, 0, sizeof(local_addrs));
+
+	for (int i = 0; i < N; i++) {
+	    local_addrs[i].sin_family = AF_INET;
+	    socklens[i] = sizeof(struct sockaddr_in);
+	    local_addrs[i].sin_addr.s_addr = htonl(0xc0a80102 + 0x100 * i);
+	    local_addrs[i].sin_port = htons(31920);
+	    local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+	}
+
+        if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    freeaddrinfo(local_res);
@@ -215,7 +244,20 @@ create_socket(int domain, int proto, const char *local, const char *bind_dev, in
             return -1;
 	}
 
-        if (bind(s, (struct sockaddr *) &lcl, addrlen) < 0) {
+	struct sockaddr_in local_addrs[N];
+	struct sockaddr *local_addrs_ptrs[N];
+	socklen_t socklens[N];
+	memset(local_addrs, 0, sizeof(local_addrs));
+
+	for (int i = 0; i < N; i++) {
+	    local_addrs[i].sin_family = AF_INET;
+	    socklens[i] = sizeof(struct sockaddr_in);
+	    local_addrs[i].sin_addr.s_addr = htonl(0xc0a80102 + 0x100 * i);
+	    local_addrs[i].sin_port = htons(31920);
+	    local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+	}
+
+        if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    freeaddrinfo(server_res);
@@ -242,7 +284,7 @@ netdial(int domain, int proto, const char *local, const char *bind_dev, int loca
 
     if (timeout_connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen, timeout) < 0 && errno != EINPROGRESS) {
 	saved_errno = errno;
-	close(s);
+	rmx_close(s);
 	freeaddrinfo(server_res);
 	errno = saved_errno;
         return -1;
@@ -340,7 +382,20 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     }
 #endif /* IPV6_V6ONLY */
 
-    if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
+    struct sockaddr_in local_addrs[N];
+    struct sockaddr *local_addrs_ptrs[N];
+    socklen_t socklens[N];
+    memset(local_addrs, 0, sizeof(local_addrs));
+
+    for (int i = 0; i < N; i++) {
+	local_addrs[i].sin_family = AF_INET;
+	socklens[i] = sizeof(struct sockaddr_in);
+	local_addrs[i].sin_addr.s_addr = htonl(0xc0a80102 + 0x100 * i);
+	local_addrs[i].sin_port = htons(31920);
+	local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+    }
+
+    if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
         saved_errno = errno;
         close(s);
 	freeaddrinfo(res);
@@ -351,9 +406,9 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     freeaddrinfo(res);
 
     if (proto == SOCK_STREAM) {
-        if (listen(s, INT_MAX) < 0) {
+        if (rmx_listen(s) < 0) {
 	    saved_errno = errno;
-	    close(s);
+	    rmx_close(s);
 	    errno = saved_errno;
             return -1;
         }

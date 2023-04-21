@@ -47,6 +47,7 @@
 #include <sys/resource.h>
 #include <sched.h>
 #include <setjmp.h>
+#include <rmx_api.h>
 
 #include "iperf.h"
 #include "iperf_api.h"
@@ -111,11 +112,8 @@ iperf_accept(struct iperf_test *test)
 {
     int s;
     signed char rbuf = ACCESS_DENIED;
-    socklen_t len;
-    struct sockaddr_storage addr;
 
-    len = sizeof(addr);
-    if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
+    if ((s = rmx_accept(test->listener, NULL, NULL)) < 0) {
         i_errno = IEACCEPT;
         return -1;
     }
