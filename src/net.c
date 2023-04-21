@@ -217,7 +217,6 @@ create_socket(int domain, int proto, const char *local, const char *bind_dev, in
     }
     /* No local name, but --cport given */
     else if (local_port) {
-	size_t addrlen;
 	struct sockaddr_storage lcl;
 
 	/* IPv4 */
@@ -226,7 +225,6 @@ create_socket(int domain, int proto, const char *local, const char *bind_dev, in
 	    lcladdr->sin_family = AF_INET;
 	    lcladdr->sin_port = htons(local_port);
 	    lcladdr->sin_addr.s_addr = INADDR_ANY;
-	    addrlen = sizeof(struct sockaddr_in);
 	}
 	/* IPv6 */
 	else if (server_res->ai_family == AF_INET6) {
@@ -234,7 +232,6 @@ create_socket(int domain, int proto, const char *local, const char *bind_dev, in
 	    lcladdr->sin6_family = AF_INET6;
 	    lcladdr->sin6_port = htons(local_port);
 	    lcladdr->sin6_addr = in6addr_any;
-	    addrlen = sizeof(struct sockaddr_in6);
 	}
 	/* Unknown protocol */
 	else {
