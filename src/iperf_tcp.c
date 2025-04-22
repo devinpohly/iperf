@@ -44,6 +44,7 @@
 #include "iperf_util.h"
 #include "net.h"
 #include "cjson.h"
+#include <rmx_api.h>
 
 #if defined(HAVE_FLOWLABEL)
 #include "flowlabel.h"
@@ -119,11 +120,8 @@ iperf_tcp_accept(struct iperf_test * test)
     int     s;
     signed char rbuf = ACCESS_DENIED;
     char    cookie[COOKIE_SIZE] = {0};
-    socklen_t len;
-    struct sockaddr_storage addr;
 
-    len = sizeof(addr);
-    if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
+    if ((s = rmx_accept(test->listener)) < 0) {
         i_errno = IESTREAMCONNECT;
         return -1;
     }
@@ -146,7 +144,7 @@ iperf_tcp_accept(struct iperf_test * test)
 
     if (Nread(s, cookie, COOKIE_SIZE, Ptcp) < 0) {
         i_errno = IERECVCOOKIE;
-        close(s);
+        rmx_close(s);
         return -1;
     }
 
@@ -154,7 +152,7 @@ iperf_tcp_accept(struct iperf_test * test)
         if (Nwrite(s, (char*) &rbuf, sizeof(rbuf), Ptcp) < 0) {
             iperf_err(test, "failed to send access denied from busy server to new connecting client, errno = %d\n", errno);
         }
-        close(s);
+        rmx_close(s);
     }
 
     return s;
@@ -190,7 +188,7 @@ iperf_tcp_listen(struct iperf_test *test)
 	int proto = 0;
 
         FD_CLR(s, &test->read_set);
-        close(s);
+        rmx_close(s);
 
         snprintf(portstr, 6, "%d", test->server_port);
         memset(&hints, 0, sizeof(hints));
@@ -228,7 +226,7 @@ iperf_tcp_listen(struct iperf_test *test)
             opt = 1;
             if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
-		close(s);
+		rmx_close(s);
 		freeaddrinfo(res);
 		errno = saved_errno;
                 i_errno = IESETNODELAY;
@@ -239,7 +237,7 @@ iperf_tcp_listen(struct iperf_test *test)
         if ((opt = test->settings->mss)) {
             if (setsockopt(s, IPPROTO_TCP, TCP_MAXSEG, &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
-		close(s);
+		rmx_close(s);
 		freeaddrinfo(res);
 		errno = saved_errno;
                 i_errno = IESETMSS;
@@ -249,7 +247,7 @@ iperf_tcp_listen(struct iperf_test *test)
         if ((opt = test->settings->socket_bufsize)) {
             if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
-		close(s);
+		rmx_close(s);
 		freeaddrinfo(res);
 		errno = saved_errno;
                 i_errno = IESETBUF;
@@ -257,7 +255,7 @@ iperf_tcp_listen(struct iperf_test *test)
             }
             if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
-		close(s);
+		rmx_close(s);
 		freeaddrinfo(res);
 		errno = saved_errno;
                 i_errno = IESETBUF;
@@ -275,7 +273,7 @@ iperf_tcp_listen(struct iperf_test *test)
         opt = 1;
         if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
 	    saved_errno = errno;
-            close(s);
+            rmx_close(s);
 	    freeaddrinfo(res);
 	    errno = saved_errno;
             i_errno = IEREUSEADDR;
@@ -296,7 +294,7 @@ iperf_tcp_listen(struct iperf_test *test)
 	    if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
 			   (char *) &opt, sizeof(opt)) < 0) {
 		saved_errno = errno;
-		close(s);
+		rmx_close(s);
 		freeaddrinfo(res);
 		errno = saved_errno;
 		i_errno = IEV6ONLY;
@@ -305,7 +303,28 @@ iperf_tcp_listen(struct iperf_test *test)
 	}
 #endif /* IPV6_V6ONLY */
 
-        if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
+  	//XXX rmx bind
+	int N = 5;
+        int i;
+
+	struct sockaddr_in local_addrs[N]; // channel local addresses (CLAs)
+  	struct sockaddr *local_addrs_ptrs[N];
+  	socklen_t socklens[N];
+  	memset(local_addrs, 0, sizeof(local_addrs));
+
+        char ip_buffer[20];
+        strcpy(ip_buffer, "192.168.x.2");
+        for (i = 0; i < N; i++) {
+    		local_addrs[i].sin_family = AF_INET;
+    		socklens[i] = sizeof(struct sockaddr_in);
+                ip_buffer[8] = '1' + i;
+                inet_aton(ip_buffer, &local_addrs[i].sin_addr);
+    		local_addrs[i].sin_port = htons(32920);
+    		local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+  	}
+
+  	if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
+	//if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
 	    saved_errno = errno;
             close(s);
 	    freeaddrinfo(res);
@@ -316,7 +335,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
         freeaddrinfo(res);
 
-        if (listen(s, INT_MAX) < 0) {
+        if (rmx_listen(s, INT_MAX) < 0) {
             i_errno = IESTREAMLISTEN;
             close(s);
             return -1;
@@ -329,7 +348,7 @@ iperf_tcp_listen(struct iperf_test *test)
     optlen = sizeof(sndbuf_actual);
     if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &sndbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
-	close(s);
+	rmx_close(s);
 	errno = saved_errno;
 	i_errno = IESETBUF;
 	return -1;
@@ -339,7 +358,7 @@ iperf_tcp_listen(struct iperf_test *test)
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > sndbuf_actual) {
 	i_errno = IESETBUF2;
-    close(s);
+    	rmx_close(s);
 	return -1;
     }
 
@@ -347,7 +366,7 @@ iperf_tcp_listen(struct iperf_test *test)
     optlen = sizeof(rcvbuf_actual);
     if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &rcvbuf_actual, &optlen) < 0) {
 	saved_errno = errno;
-	close(s);
+	rmx_close(s);
 	errno = saved_errno;
 	i_errno = IESETBUF;
 	return -1;
@@ -357,7 +376,7 @@ iperf_tcp_listen(struct iperf_test *test)
     }
     if (test->settings->socket_bufsize && test->settings->socket_bufsize > rcvbuf_actual) {
 	i_errno = IESETBUF2;
-    close(s);
+    	rmx_close(s);
 	return -1;
     }
 
@@ -577,9 +596,32 @@ iperf_tcp_connect(struct iperf_test *test)
     /* Set common socket options */
     iperf_common_sockopts(test, s);
 
-    if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
+// connect
+
+    //XXX rmx connect
+    int N = 5;
+    int i;
+
+    struct sockaddr_in remote_addrs[N]; // channel remote addresses (CRAs)
+    struct sockaddr *remote_addrs_ptrs[N];
+    socklen_t socklens[N];
+    memset(remote_addrs, 0, sizeof(remote_addrs));
+
+    char ip_buffer[20];
+    strcpy(ip_buffer, "192.168.x.2");
+    for (i = 0; i < N; i++) {
+    	remote_addrs[i].sin_family = AF_INET;
+    	socklens[i] = sizeof(struct sockaddr_in);
+	ip_buffer[8] = '1' + i;
+        inet_aton(ip_buffer, &remote_addrs[i].sin_addr);
+	remote_addrs[i].sin_port = htons(32920);
+   	remote_addrs_ptrs[i] = (struct sockaddr *) &remote_addrs[i];
+    }
+
+    if(rmx_connect(s, N, remote_addrs_ptrs, socklens) < 0 && errno != EINPROGRESS) {
+    //if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
 	saved_errno = errno;
-	close(s);
+	rmx_close(s);
 	freeaddrinfo(server_res);
 	errno = saved_errno;
         i_errno = IESTREAMCONNECT;
@@ -591,7 +633,7 @@ iperf_tcp_connect(struct iperf_test *test)
     /* Send cookie for verification */
     if (Nwrite(s, test->cookie, COOKIE_SIZE, Ptcp) < 0) {
 	saved_errno = errno;
-	close(s);
+	rmx_close(s);
 	errno = saved_errno;
         i_errno = IESENDCOOKIE;
         return -1;

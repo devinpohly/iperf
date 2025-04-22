@@ -65,6 +65,10 @@
 #include "net.h"
 #include "timer.h"
 
+#include <rmx_api.h>
+
+#define N 5
+
 static int nread_read_timeout = 10;
 static int nread_overall_timeout = 30;
 
@@ -83,6 +87,9 @@ int
 timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
     int timeout)
 {
+
+    printf("rmx_connect!\n");
+
 	struct pollfd pfd;
 	socklen_t optlen;
 	int flags, optval;
@@ -95,7 +102,25 @@ timeout_connect(int s, const struct sockaddr *name, socklen_t namelen,
 			return -1;
 	}
 
-	if ((ret = connect(s, name, namelen)) != 0 && errno == EINPROGRESS) {
+    // <<< RMX_CONNECT <<< WOOHOO!!! <<< WOWZA!    
+    struct sockaddr_in remote_addrs[N]; // channel local addresses (CLAs)
+    struct sockaddr *remote_addrs_ptrs[N]; // channel local addresses (CLAs)
+    socklen_t socklens[N];
+    memset(remote_addrs, 0, sizeof(remote_addrs));
+    
+    char ip_buffer[20];
+    strcpy(ip_buffer, "192.168.x.2");
+    for (int i = 0; i < N; i++) {
+        remote_addrs[i].sin_family = AF_INET;
+        socklens[i] = sizeof(struct sockaddr_in);
+        ip_buffer[8] = '1' + i;
+        inet_aton(ip_buffer, &remote_addrs[i].sin_addr);
+        remote_addrs[i].sin_port = htons(32920);
+        remote_addrs_ptrs[i] = (struct sockaddr *) &remote_addrs[i];
+    }
+
+	//if ((ret = connect(s, name, namelen)) != 0 && errno == EINPROGRESS) {
+    if ((ret = rmx_connect(s, N, remote_addrs_ptrs, socklens)) != 0 && errno == EINPROGRESS) {
 		pfd.fd = s;
 		pfd.events = POLLOUT;
 		if ((ret = poll(&pfd, 1, timeout)) == 1) {
@@ -152,7 +177,7 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
     if (s < 0) {
 	if (local)
 	    freeaddrinfo(local_res);
-	freeaddrinfo(server_res);
+	    freeaddrinfo(server_res);
         return -1;
     }
 
@@ -171,6 +196,26 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
         }
     }
 
+    // DOING rmx_bind STUFF WOOHOO!!!!!!!!!!!!!!!!!!!!!!
+    
+    printf("rmx_bind 1!\n");
+
+    struct sockaddr_in local_addrs[N]; // channel local addresses (CLAs)
+    struct sockaddr *local_addrs_ptrs[N]; // channel local addresses (CLAs)
+    socklen_t socklens[N];
+    memset(local_addrs, 0, sizeof(local_addrs));
+    
+    char ip_buffer[20];
+    strcpy(ip_buffer, "192.168.x.2");
+    for (int i = 0; i < N; i++) {
+        local_addrs[i].sin_family = AF_INET;
+        socklens[i] = sizeof(struct sockaddr_in);
+        ip_buffer[8] = '1' + i;
+        inet_aton(ip_buffer, &local_addrs[i].sin_addr);
+        local_addrs[i].sin_port = htons(32920);
+        local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+    }
+
     /* Bind the local address if given a name (with or without --cport) */
     if (local) {
         if (local_port) {
@@ -179,14 +224,16 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
             lcladdr->sin_port = htons(local_port);
         }
 
-        if (bind(s, (struct sockaddr *) local_res->ai_addr, local_res->ai_addrlen) < 0) {
-	    saved_errno = errno;
-	    close(s);
-	    freeaddrinfo(local_res);
-	    freeaddrinfo(server_res);
-	    errno = saved_errno;
+        //if (bind(s, (struct sockaddr *) local_res->ai_addr, local_res->ai_addrlen) < 0) {
+	    printf("rmx_bind 2!\n");
+        if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
+            saved_errno = errno;
+	        close(s);
+	        freeaddrinfo(local_res);
+	        freeaddrinfo(server_res);
+	        errno = saved_errno;
             return -1;
-	}
+	    }
         freeaddrinfo(local_res);
     }
     /* No local name, but --cport given */
@@ -215,14 +262,16 @@ create_socket(int domain, int type, int proto, const char *local, const char *bi
 	    close(s);
 	    freeaddrinfo(server_res);
 	    errno = EAFNOSUPPORT;
-            return -1;
+        return -1;
 	}
 
-        if (bind(s, (struct sockaddr *) &lcl, addrlen) < 0) {
-	    saved_errno = errno;
-	    close(s);
-	    freeaddrinfo(server_res);
-	    errno = saved_errno;
+        //if (bind(s, (struct sockaddr *) &lcl, addrlen) < 0) {
+        printf("rmx_bind 3!\n");
+        if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
+	        saved_errno = errno;
+	        close(s);
+	        freeaddrinfo(server_res);
+	        errno = saved_errno;
             return -1;
         }
     }
@@ -343,7 +392,26 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     }
 #endif /* IPV6_V6ONLY */
 
-    if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
+    
+    struct sockaddr_in local_addrs[N]; // channel local addresses (CLAs)
+    struct sockaddr *local_addrs_ptrs[N]; // channel local addresses (CLAs)
+    socklen_t socklens[N];
+    memset(local_addrs, 0, sizeof(local_addrs));
+    
+    char ip_buffer[20];
+    strcpy(ip_buffer, "192.168.x.2");
+    for (int i = 0; i < N; i++) {
+        local_addrs[i].sin_family = AF_INET;
+        socklens[i] = sizeof(struct sockaddr_in);
+        ip_buffer[8] = '1' + i;
+        inet_aton(ip_buffer, &local_addrs[i].sin_addr);
+        local_addrs[i].sin_port = htons(32920);
+        local_addrs_ptrs[i] = (struct sockaddr *) &local_addrs[i];
+    }
+
+    //if (bind(s, (struct sockaddr *) res->ai_addr, res->ai_addrlen) < 0) {
+    printf("rmx_bind 4!\n");
+    if (rmx_bind(s, N, local_addrs_ptrs, socklens) < 0) {
         saved_errno = errno;
         close(s);
 	freeaddrinfo(res);
@@ -354,7 +422,7 @@ netannounce(int domain, int proto, const char *local, const char *bind_dev, int 
     freeaddrinfo(res);
 
     if (proto == SOCK_STREAM) {
-        if (listen(s, INT_MAX) < 0) {
+        if (rmx_listen(s, INT_MAX) < 0) {
 	    saved_errno = errno;
 	    close(s);
 	    errno = saved_errno;
